@@ -45,5 +45,9 @@ jwt-key*.txt
 scripts/generate-jwt-key.mjs
 scripts/set-convex-env.mjs
 scripts/test-full-site-crawl.mjs
+scripts
 # Claude files
 CLAUDE.md
+README.md
+firecrawl-observer/README.md
+firecrawl-observer/riper/README.md
