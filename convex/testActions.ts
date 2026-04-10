@@ -4,8 +4,9 @@ import { requireCurrentUserForAction } from "./helpers";
 import { api, internal } from "./_generated/api";
 import { resend } from "./alertEmail";
 import { sanitizeHtml } from "./lib/sanitize";
+import { callAnthropic, extractText, AnthropicError } from "./lib/anthropic";
 
-// Test AI model connection
+// Test AI model connection (Anthropic Messages API)
 export const testAIModel = action({
   handler: async (ctx): Promise<{
     success: boolean;
@@ -13,70 +14,60 @@ export const testAIModel = action({
     error?: string;
     model?: string;
     responseModel?: string;
-    baseUrl?: string;
   }> => {
-    const user = await requireCurrentUserForAction(ctx);
-    
+    const userId = await requireCurrentUserForAction(ctx);
+
     // Get user settings
     const userSettings: any = await ctx.runQuery(api.userSettings.getUserSettings);
-    
+
     if (!userSettings?.aiApiKey) {
       throw new Error("No API key configured");
     }
-    
+
     if (!userSettings.aiAnalysisEnabled) {
       throw new Error("AI analysis is not enabled");
     }
-    
-    const baseUrl = userSettings.aiBaseUrl || "https://api.openai.com/v1";
-    const apiUrl = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
-    
+
     try {
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${userSettings.aiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: userSettings.aiModel || "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: "You are a helpful assistant. Please respond with a simple JSON object.",
-            },
-            {
-              role: "user",
-              content: "Please respond with a JSON object containing: { \"status\": \"success\", \"message\": \"Connection successful\", \"model\": \"<the model you are>\" }",
-            },
-          ],
-          temperature: 0.3,
-          max_tokens: 100,
-          response_format: { type: "json_object" },
-        }),
+      const response = await callAnthropic(ctx, userId, {
+        system: "You are a helpful assistant. Respond with a JSON object containing: { \"status\": \"success\", \"message\": \"Connection successful\" }. Respond ONLY with JSON.",
+        messages: [
+          {
+            role: "user",
+            content: "Please confirm the connection is working by responding with the JSON object.",
+          },
+        ],
+        model: userSettings.aiModel || undefined,
+        temperature: 0.3,
+        maxTokens: 100,
       });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`API error: ${response.status} - ${error}`);
+
+      const text = extractText(response);
+      let result: { status?: string; message?: string };
+      try {
+        result = JSON.parse(text);
+      } catch {
+        result = { status: "success", message: "Connection successful (non-JSON response)" };
       }
-      
-      const data = await response.json();
-      const result = JSON.parse(data.choices[0].message.content);
-      
+
       return {
         success: true,
         message: result.message || "Connection successful",
-        model: userSettings.aiModel,
-        responseModel: result.model,
-        baseUrl: baseUrl,
+        model: userSettings.aiModel || response.model,
+        responseModel: response.model,
       };
     } catch (error) {
+      if (error instanceof AnthropicError) {
+        return {
+          success: false,
+          error: `Anthropic API error: ${error.message}`,
+          model: userSettings.aiModel,
+        };
+      }
       return {
         success: false,
-        error: (error as Error).message || "Failed to connect to AI model",
+        error: (error as Error).message || "Failed to connect to Anthropic",
         model: userSettings.aiModel,
-        baseUrl: baseUrl,
       };
     }
   },
@@ -89,28 +80,28 @@ export const testEmailSending = action({
     message: string;
   }> => {
     const user = await requireCurrentUserForAction(ctx);
-    
+
     // Get user's email config
     const emailConfig: any = await ctx.runQuery(api.emailManager.getEmailConfig);
-    
+
     if (!emailConfig?.email) {
       throw new Error("No email configured");
     }
-    
+
     if (!emailConfig.isVerified) {
       throw new Error("Email is not verified");
     }
-    
+
     // Get user settings for template
     const userSettings = await ctx.runQuery(api.userSettings.getUserSettings);
-    
+
     // Schedule the test email
     await ctx.scheduler.runAfter(0, internal.testActions.sendTestEmailInternal, {
       email: emailConfig.email,
       userId: user,
       emailTemplate: userSettings?.emailTemplate || undefined,
     });
-    
+
     return {
       success: true,
       message: `Test email sent to ${emailConfig.email}`,
@@ -127,7 +118,7 @@ export const sendTestEmailInternal = internalAction({
   },
   handler: async (ctx, args) => {
     let htmlContent = '';
-    
+
     if (args.emailTemplate) {
       // Use custom template with test data
       let processedTemplate = args.emailTemplate
@@ -140,9 +131,9 @@ export const sendTestEmailInternal = internalAction({
         .replace(/{{aiMeaningfulScore}}/g, '85')
         .replace(/{{aiIsMeaningful}}/g, 'Yes')
         .replace(/{{aiReasoning}}/g, 'This is a test email to verify your email template is working correctly.')
-        .replace(/{{aiModel}}/g, 'gpt-4o-mini')
+        .replace(/{{aiModel}}/g, 'claude-haiku-4-5-20251001')
         .replace(/{{aiAnalyzedAt}}/g, new Date().toLocaleString());
-      
+
       // Sanitize the HTML
       htmlContent = sanitizeHtml(processedTemplate);
     } else {
@@ -159,7 +150,7 @@ export const sendTestEmailInternal = internalAction({
         <p>If you received this email, your email notifications are configured correctly.</p>
       `;
     }
-    
+
     await resend.sendEmail(ctx, {
       from: `${process.env.APP_NAME || 'Firecrawl Observer'} <${process.env.FROM_EMAIL || 'noreply@example.com'}>`,
       to: args.email,

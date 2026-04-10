@@ -11,4 +11,20 @@ crons.interval(
   internal.monitoring.checkActiveWebsites
 );
 
+// ── RIPER crons ──────────────────────────────────────────────────────────────
+
+// Process extraction queue every 30 seconds
+crons.interval(
+  "riper-extraction-queue",
+  { seconds: 30 },
+  internal.riper.queue.processBatch
+);
+
+// Daily retention sweep at 00:00 JST (15:00 UTC)
+crons.daily(
+  "riper-retention",
+  { hourUTC: 15, minuteUTC: 0 },
+  internal.riper.retention.sweep
+);
+
 export default crons;

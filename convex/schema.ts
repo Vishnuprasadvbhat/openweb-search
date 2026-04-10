@@ -126,8 +126,8 @@ const schema = defineSchema({
     emailTemplate: v.optional(v.string()),
     // AI Analysis settings
     aiAnalysisEnabled: v.optional(v.boolean()),
-    aiModel: v.optional(v.string()), // Changed to string to support any model name
-    aiBaseUrl: v.optional(v.string()), // Custom base URL for OpenAI-compatible APIs
+    aiModel: v.optional(v.string()), // Anthropic model ID (e.g. claude-haiku-4-5-20251001)
+    aiBaseUrl: v.optional(v.string()), // DEPRECATED: kept for backward compat with existing docs — no longer read or written
     aiSystemPrompt: v.optional(v.string()),
     aiMeaningfulChangeThreshold: v.optional(v.number()), // 0-100 score threshold
     aiApiKey: v.optional(v.string()), // encrypted API key
@@ -149,6 +149,96 @@ const schema = defineSchema({
     response: v.optional(v.any()),
   })
     .index("by_time", ["receivedAt"]),
+
+  // ── RIPER tables ──────────────────────────────────────────────────────────
+
+  missions: defineTable({
+    userId: v.id("users"),
+    name: v.string(),
+    role: v.string(),
+    goal: v.string(),
+    coverageMap: v.object({
+      topics: v.array(v.string()),
+      keywords: v.array(v.string()),
+      sourceTypes: v.array(v.string()),
+      outputSchema: v.any(),
+      decisionRules: v.array(v.string()),
+    }),
+    watchedWebsiteIds: v.array(v.id("websites")),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_user", ["userId"])
+    .index("by_active_user", ["userId", "isActive"]),
+
+  intelligenceItems: defineTable({
+    missionId: v.id("missions"),
+    websiteId: v.optional(v.id("websites")),
+    userId: v.id("users"),
+    extractedFact: v.string(),
+    factJson: v.any(),
+    confidence: v.union(
+      v.literal("high"),
+      v.literal("medium"),
+      v.literal("low"),
+    ),
+    status: v.union(
+      v.literal("active"),
+      v.literal("superseded"),
+      v.literal("excluded"),
+    ),
+    supersededBy: v.optional(v.id("intelligenceItems")),
+    sourceUrl: v.string(),
+    sourcePublishedAt: v.optional(v.number()),
+    dedupHash: v.string(),
+    sourceInfo: v.any(),
+    extractedAt: v.number(),
+  })
+    .index("by_mission_status", ["missionId", "status"])
+    .index("by_mission_time", ["missionId", "extractedAt"])
+    .index("by_user_time", ["userId", "extractedAt"])
+    .index("by_dedup", ["missionId", "dedupHash"])
+    .index("by_published", ["sourcePublishedAt"]),
+
+  reports: defineTable({
+    missionId: v.id("missions"),
+    userId: v.id("users"),
+    markdownContent: v.string(),
+    itemsIncluded: v.array(v.id("intelligenceItems")),
+    synthesizedAt: v.number(),
+    triggeredBy: v.union(
+      v.literal("manual"),
+      v.literal("search_orchestration"),
+      v.literal("scheduled"),
+    ),
+  })
+    .index("by_mission_time", ["missionId", "synthesizedAt"])
+    .index("by_user_time", ["userId", "synthesizedAt"]),
+
+  extractionQueue: defineTable({
+    missionId: v.id("missions"),
+    userId: v.id("users"),
+    payload: v.object({
+      sourceUrl: v.string(),
+      sourceText: v.string(),
+      websiteId: v.optional(v.id("websites")),
+      sourcePublishedAt: v.optional(v.number()),
+    }),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("running"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    attempts: v.number(),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_status_time", ["status", "createdAt"])
+    .index("by_mission", ["missionId"]),
+
+  // ── Existing Observer tables continued ──────────────────────────────────
 
   crawlSessions: defineTable({
     websiteId: v.id("websites"),

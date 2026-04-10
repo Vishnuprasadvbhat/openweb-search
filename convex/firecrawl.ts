@@ -105,6 +105,13 @@ export const scrapeUrl = internalAction({
           summary: diffPreview,
         });
 
+        // ── RIPER bridge: passively feed the intelligence pipeline ──
+        await ctx.scheduler.runAfter(0, internal.riper.bridge.handleChange, {
+          scrapeResultId,
+          websiteId: args.websiteId,
+          userId: args.userId,
+        });
+
         // Trigger AI analysis if enabled and there's a diff
         if (changeTracking?.diff) {
           await ctx.scheduler.runAfter(0, internal.aiAnalysis.analyzeChange, {

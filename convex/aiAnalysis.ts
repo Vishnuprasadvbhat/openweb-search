@@ -1,8 +1,9 @@
 import { v } from "convex/values";
 import { internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { callAnthropicWithBackoff, extractText, AnthropicError } from "./lib/anthropic";
 
-// Analyze website changes using AI
+// Analyze website changes using AI (Anthropic Messages API)
 export const analyzeChange = internalAction({
   args: {
     userId: v.id("users"),
@@ -49,54 +50,34 @@ Analyze the provided diff and return a JSON response with:
   "score": 0-100 (how meaningful the change is),
   "isMeaningful": true/false,
   "reasoning": "Brief explanation of your decision"
-}`;
+}
+
+IMPORTANT: Respond ONLY with the JSON object, no other text.`;
 
     try {
-      // Use custom base URL if provided, otherwise default to OpenAI
-      const baseUrl = userSettings.aiBaseUrl || "https://api.openai.com/v1";
-      const apiUrl = `${baseUrl.replace(/\/$/, '')}/chat/completions`;
-      
-      // Call AI API
-      const response = await fetch(apiUrl, {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${userSettings.aiApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: userSettings.aiModel || "gpt-4o-mini",
-          messages: [
-            {
-              role: "system",
-              content: systemPrompt,
-            },
-            {
-              role: "user",
-              content: `Website: ${args.websiteName} (${args.websiteUrl})
-              
+      const response = await callAnthropicWithBackoff(ctx, args.userId, {
+        system: systemPrompt,
+        messages: [
+          {
+            role: "user",
+            content: `Website: ${args.websiteName} (${args.websiteUrl})
+
 Changes detected:
 ${args.diff.text}
 
-Please analyze these changes and determine if they are meaningful.`,
-            },
-          ],
-          temperature: 0.3,
-          max_tokens: 500,
-          response_format: { type: "json_object" },
-        }),
+Please analyze these changes and determine if they are meaningful. Respond with JSON only.`,
+          },
+        ],
+        model: userSettings.aiModel || undefined,
+        temperature: 0.3,
+        maxTokens: 500,
       });
 
-      if (!response.ok) {
-        const error = await response.text();
-        console.error("AI API error:", error);
-        return;
-      }
-
-      const data = await response.json();
-      const aiResponse = JSON.parse(data.choices[0].message.content);
+      const responseText = extractText(response);
+      const aiResponse = JSON.parse(responseText);
 
       // Validate response structure
-      if (typeof aiResponse.score !== "number" || 
+      if (typeof aiResponse.score !== "number" ||
           typeof aiResponse.isMeaningful !== "boolean" ||
           typeof aiResponse.reasoning !== "string") {
         console.error("Invalid AI response format:", aiResponse);
@@ -115,7 +96,7 @@ Please analyze these changes and determine if they are meaningful.`,
           isMeaningfulChange: isMeaningful,
           reasoning: aiResponse.reasoning,
           analyzedAt: Date.now(),
-          model: userSettings.aiModel || "gpt-4o-mini",
+          model: response.model,
         },
       });
 
@@ -134,11 +115,15 @@ Please analyze these changes and determine if they are meaningful.`,
           isMeaningfulChange: isMeaningful,
           reasoning: aiResponse.reasoning,
           analyzedAt: Date.now(),
-          model: userSettings.aiModel || "gpt-4o-mini",
+          model: response.model,
         },
       });
     } catch (error) {
-      console.error("Error in AI analysis:", error);
+      if (error instanceof AnthropicError) {
+        console.error(`Anthropic API error in AI analysis: [${error.code}] ${error.message}`);
+      } else {
+        console.error("Error in AI analysis:", error);
+      }
     }
   },
 });
@@ -190,12 +175,12 @@ export const handleAIBasedNotifications = internalAction({
       }
 
       // Check if we should send webhook notification
-      const shouldSendWebhook = (website.notificationPreference === "webhook" || website.notificationPreference === "both") && 
-                               website.webhookUrl && 
+      const shouldSendWebhook = (website.notificationPreference === "webhook" || website.notificationPreference === "both") &&
+                               website.webhookUrl &&
                                (!userSettings?.webhookOnlyIfMeaningful || args.isMeaningful);
 
       // Check if we should send email notification
-      const shouldSendEmail = (website.notificationPreference === "email" || website.notificationPreference === "both") && 
+      const shouldSendEmail = (website.notificationPreference === "email" || website.notificationPreference === "both") &&
                              (!userSettings?.emailOnlyIfMeaningful || args.isMeaningful);
 
       // Send webhook notification if conditions are met
@@ -223,7 +208,7 @@ export const handleAIBasedNotifications = internalAction({
         const emailConfig = await ctx.runQuery(internal.emailManager.getEmailConfigInternal, {
           userId: args.userId,
         });
-        
+
         if (emailConfig?.email && emailConfig.isVerified) {
           await ctx.scheduler.runAfter(0, internal.notifications.sendEmailNotification, {
             email: emailConfig.email,

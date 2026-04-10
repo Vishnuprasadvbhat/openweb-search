@@ -63,8 +63,7 @@ function SettingsContent() {
   
   // AI settings state
   const [aiEnabled, setAiEnabled] = useState(false)
-  const [aiModel, setAiModel] = useState('gpt-4o-mini') // Default to OpenAI's gpt-4o-mini
-  const [aiBaseUrl, setAiBaseUrl] = useState('')
+  const [aiModel, setAiModel] = useState('claude-haiku-4-5-20251001')
   const [aiSystemPrompt, setAiSystemPrompt] = useState('')
   const [aiThreshold, setAiThreshold] = useState(70)
   const [aiApiKey, setAiApiKey] = useState('')
@@ -166,8 +165,7 @@ function SettingsContent() {
     // Populate AI settings
     if (userSettings) {
       setAiEnabled(userSettings.aiAnalysisEnabled || false)
-      setAiModel(userSettings.aiModel || 'gpt-4o-mini')
-      setAiBaseUrl(userSettings.aiBaseUrl || '')
+      setAiModel(userSettings.aiModel || 'claude-haiku-4-5-20251001')
       
       // Set system prompt with default if not provided
       const defaultSystemPrompt = `You are an AI assistant specialized in analyzing website changes. Your task is to determine if a detected change is "meaningful" or just noise.
@@ -636,7 +634,7 @@ Analyze the provided diff and return a JSON response with:
                                   .replace(/{{aiMeaningfulScore}}/g, '85')
                                   .replace(/{{aiIsMeaningful}}/g, 'Yes')
                                   .replace(/{{aiReasoning}}/g, 'The page content has been updated with new product information and pricing changes.')
-                                  .replace(/{{aiModel}}/g, 'gpt-4o-mini')
+                                  .replace(/{{aiModel}}/g, 'claude-haiku-4-5-20251001')
                                   .replace(/{{aiAnalyzedAt}}/g, new Date().toLocaleString())
                               }}
                             />
@@ -1191,7 +1189,7 @@ Analyze the provided diff and return a JSON response with:
                               <Input
                                 id="ai-api-key"
                                 type="password"
-                                placeholder="sk-... or your provider's API key"
+                                placeholder="sk-ant-..."
                                 value={aiApiKey}
                                 onChange={(e) => setAiApiKey(e.target.value)}
                                 className="flex-1 font-mono"
@@ -1207,7 +1205,6 @@ Analyze the provided diff and return a JSON response with:
                                     await updateAISettings({
                                       enabled: true,
                                       model: aiModel,
-                                      baseUrl: aiBaseUrl,
                                       systemPrompt: aiSystemPrompt,
                                       threshold: aiThreshold,
                                       apiKey: aiApiKey,
@@ -1237,7 +1234,7 @@ Analyze the provided diff and return a JSON response with:
                               </Button>
                             </div>
                             <p className="text-sm text-gray-500 mt-1">
-                              Your API key from OpenAI or any compatible provider
+                              Your Anthropic API key — get one at <a href="https://console.anthropic.com/settings/keys" target="_blank" className="text-orange-600 hover:underline">console.anthropic.com</a>
                             </p>
                             {aiTestResult && (
                               <div className={`mt-2 p-2 rounded text-sm ${
@@ -1253,45 +1250,19 @@ Analyze the provided diff and return a JSON response with:
                           {/* Model */}
                           <div>
                             <Label htmlFor="ai-model">Model</Label>
-                            <Input
+                            <select
                               id="ai-model"
-                              type="text"
-                              placeholder="gpt-4o-mini"
                               value={aiModel}
                               onChange={(e) => setAiModel(e.target.value)}
-                              className="mt-1 font-mono"
-                            />
+                              className="mt-1 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm font-mono shadow-sm focus:border-orange-500 focus:outline-none focus:ring-1 focus:ring-orange-500"
+                            >
+                              <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (fast, low cost)</option>
+                              <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (balanced)</option>
+                              <option value="claude-opus-4-6">Claude Opus 4.6 (most capable)</option>
+                            </select>
                             <p className="text-sm text-gray-500 mt-1">
-                              Model identifier (e.g., gpt-4o-mini, claude-4-sonnet, etc.)
+                              Haiku is recommended for change analysis — fast and cost-effective.
                             </p>
-                          </div>
-                          
-                          {/* Base URL */}
-                          <div>
-                            <Label htmlFor="ai-base-url">Base URL (Optional)</Label>
-                            <Input
-                              id="ai-base-url"
-                              type="url"
-                              placeholder="https://api.openai.com/v1"
-                              value={aiBaseUrl}
-                              onChange={(e) => setAiBaseUrl(e.target.value)}
-                              className="mt-1 font-mono"
-                            />
-                            <p className="text-sm text-gray-500 mt-1">
-                              Custom endpoint for OpenAI-compatible APIs. Leave empty for OpenAI.
-                            </p>
-                          </div>
-                          
-                          {/* Provider Examples */}
-                          <div className="text-sm text-gray-600 space-y-1">
-                            <p className="font-medium">Provider Examples:</p>
-                            <ul className="space-y-1 ml-4">
-                              <li>• <a href="https://platform.openai.com/api-keys" target="_blank" className="text-orange-600 hover:underline">OpenAI</a>: gpt-4o-mini</li>
-                              <li>• <a href="https://console.anthropic.com/settings/keys" target="_blank" className="text-orange-600 hover:underline">Anthropic</a>: claude-4-sonnet</li>
-                              <li>• <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-orange-600 hover:underline">Google</a>: gemini-2.5-flash-lite</li>
-                              <li>• <a href="https://console.groq.com/keys" target="_blank" className="text-orange-600 hover:underline">Groq</a>: moonshotai/kimi-k2-instruct</li>
-                              <li>• And more...</li>
-                            </ul>
                           </div>
                         </div>
                         
@@ -1444,7 +1415,6 @@ Analyze the provided diff and return a JSON response with:
                             await updateAISettings({
                               enabled: aiEnabled,
                               model: aiEnabled ? aiModel : undefined,
-                              baseUrl: aiEnabled ? aiBaseUrl : undefined,
                               systemPrompt: aiEnabled ? aiSystemPrompt : undefined,
                               threshold: aiEnabled ? aiThreshold : undefined,
                               apiKey: aiEnabled ? aiApiKey : undefined,

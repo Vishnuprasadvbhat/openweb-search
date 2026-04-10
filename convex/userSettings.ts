@@ -24,7 +24,8 @@ export const getUserSettings = query({
         emailTemplate: null,
         aiAnalysisEnabled: false,
         aiModel: null,
-        aiBaseUrl: null,
+        aiBaseUrl: null, // deprecated
+
         aiSystemPrompt: null,
         aiMeaningfulChangeThreshold: 70,
         aiApiKey: null,
@@ -167,15 +168,15 @@ export const updateEmailTemplate = mutation({
   },
 });
 
-// Update AI analysis settings
+// Update AI analysis settings (Anthropic-only)
 export const updateAISettings = mutation({
   args: {
     enabled: v.boolean(),
-    model: v.optional(v.string()), // Now accepts any model string
-    baseUrl: v.optional(v.string()), // Custom base URL for OpenAI-compatible APIs
+    model: v.optional(v.string()), // Anthropic model ID
     systemPrompt: v.optional(v.string()),
     threshold: v.optional(v.number()),
     apiKey: v.optional(v.string()),
+    // baseUrl removed — Anthropic endpoint is hardcoded in convex/lib/anthropic.ts
   },
   handler: async (ctx, args) => {
     const user = await requireCurrentUser(ctx);
@@ -233,7 +234,6 @@ Analyze the provided diff and return a JSON response with:
     const updateData = {
       aiAnalysisEnabled: args.enabled,
       ...(args.model && { aiModel: args.model }),
-      ...(args.baseUrl !== undefined && { aiBaseUrl: args.baseUrl }),
       ...(args.systemPrompt !== undefined && { aiSystemPrompt: args.systemPrompt || defaultPrompt }),
       ...(args.threshold !== undefined && { aiMeaningfulChangeThreshold: args.threshold }),
       ...(encryptedApiKey !== undefined && { aiApiKey: encryptedApiKey }),
