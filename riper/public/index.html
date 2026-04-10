@@ -1,0 +1,1199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RIPER — Research Intelligence Pipeline</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,300;0,400;0,500;0,600;1,400&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080810;
+    --surface: #0f0f1a;
+    --surface2: #161625;
+    --border: #1e1e35;
+    --green: #4ade80;
+    --green-dim: #166534;
+    --blue: #60a5fa;
+    --yellow: #facc15;
+    --red: #f87171;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Syne', sans-serif;
+    --log-bg: #020208;
+    --code-bg: rgba(255,255,255,.06);
+  }
+  [data-theme="light"] {
+    --bg: #f0f1f5;
+    --surface: #ffffff;
+    --surface2: #f5f6fa;
+    --border: #d8dae5;
+    --green: #16a34a;
+    --green-dim: #bbf7d0;
+    --blue: #2563eb;
+    --yellow: #ca8a04;
+    --red: #dc2626;
+    --text: #1a1a2e;
+    --muted: #64748b;
+    --log-bg: #f8f9fc;
+    --code-bg: rgba(0,0,0,.06);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; overflow: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: var(--mono); font-size: 13px; line-height: 1.6; }
+
+  /* Header */
+  .header { border-bottom: 1px solid var(--border); padding: 16px 28px; display: flex; align-items: center; gap: 16px; background: var(--surface); position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: var(--sans); font-weight: 800; font-size: 18px; color: var(--green); letter-spacing: -0.5px; }
+  .logo span { color: var(--muted); font-weight: 400; font-size: 12px; margin-left: 8px; font-family: var(--mono); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .status-dot.active { background: var(--green); box-shadow: 0 0 8px var(--green); animation: pulse 2s infinite; }
+  .status-dot.error { background: var(--red); }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  #serverBadge { font-size: 10px; padding: 3px 8px; border-radius: 4px; border: 1px solid var(--border); color: var(--muted); }
+  #serverBadge.ok { border-color: rgba(74,222,128,.3); color: var(--green); background: rgba(74,222,128,.05); }
+  #serverBadge.err { border-color: rgba(248,113,113,.3); color: var(--red); }
+
+  /* Layout */
+  .main { display: grid; grid-template-columns: 320px 1fr; height: calc(100vh - 57px); overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar { border-right: 1px solid var(--border); overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+  .section-label { font-size: 10px; letter-spacing: .15em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .field-group { display: flex; flex-direction: column; gap: 5px; }
+  label { font-size: 11px; color: var(--muted); }
+  input[type="text"], input[type="password"], textarea, select {
+    background: var(--surface2); border: 1px solid var(--border); color: var(--text);
+    font-family: var(--mono); font-size: 12px; padding: 7px 10px; border-radius: 6px;
+    width: 100%; transition: border-color .2s; outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--green); }
+  textarea { resize: vertical; min-height: 130px; }
+  .divider { border: none; border-top: 1px solid var(--border); }
+
+  .file-drop { border: 1px dashed var(--border); border-radius: 6px; padding: 14px; text-align: center; cursor: pointer; transition: all .2s; color: var(--muted); font-size: 11px; }
+  .file-drop:hover { border-color: var(--green); color: var(--green); }
+  .file-drop.has-file { border-color: var(--green-dim); color: var(--green); background: rgba(74,222,128,.05); }
+
+  .btn { padding: 9px 16px; border-radius: 6px; border: none; font-family: var(--mono); font-size: 12px; font-weight: 500; cursor: pointer; transition: all .2s; display: inline-flex; align-items: center; gap: 8px; letter-spacing: .03em; }
+  .btn-primary { background: var(--green); color: #000; width: 100%; justify-content: center; }
+  .btn-primary:hover:not(:disabled) { background: #86efac; }
+  .btn-primary:disabled { opacity: .4; cursor: not-allowed; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--green); color: var(--green); }
+  .btn-sm { padding: 5px 10px; font-size: 11px; }
+
+  /* Pipeline bar */
+  .pipeline-header { padding: 14px 24px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 0; overflow-x: auto; background: var(--surface); flex-shrink: 0; }
+  .stage-node { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+  .stage-connector { width: 28px; height: 1px; background: var(--border); flex-shrink: 0; }
+  .stage-connector.active { background: var(--green); }
+  .node-badge { width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--muted); background: var(--surface2); transition: all .3s; flex-shrink: 0; }
+  .node-badge.running { border-color: var(--yellow); color: var(--yellow); background: rgba(250,204,21,.1); animation: spin .8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .node-badge.done { border-color: var(--green); color: var(--green); background: rgba(74,222,128,.1); }
+  .node-badge.error { border-color: var(--red); color: var(--red); background: rgba(248,113,113,.1); }
+  .node-info { flex-shrink: 0; }
+  .node-name { font-size: 10px; font-weight: 600; color: var(--text); letter-spacing: .05em; text-transform: uppercase; }
+  .node-sub { font-size: 9px; color: var(--muted); }
+
+  /* Content */
+  .content { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
+  .stages-view { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+
+  /* Stage blocks */
+  .stage-block { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; transition: border-color .3s; }
+  .stage-block.active { border-color: var(--yellow); }
+  .stage-block.done { border-color: rgba(74,222,128,.3); }
+  .stage-block.error { border-color: rgba(248,113,113,.3); }
+  .stage-block-header { padding: 11px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+  .stage-block-header:hover { background: rgba(255,255,255,.02); }
+  .stage-num { font-size: 10px; font-weight: 600; color: var(--muted); width: 18px; }
+  .stage-title { font-family: var(--sans); font-weight: 600; font-size: 13px; flex: 1; }
+  .stage-badge { font-size: 9px; padding: 2px 8px; border-radius: 99px; letter-spacing: .1em; text-transform: uppercase; font-weight: 600; }
+  .badge-pending { background: rgba(100,116,139,.2); color: var(--muted); }
+  .badge-running { background: rgba(250,204,21,.15); color: var(--yellow); }
+  .badge-done { background: rgba(74,222,128,.15); color: var(--green); }
+  .badge-error { background: rgba(248,113,113,.15); color: var(--red); }
+  .stage-block-body { padding: 0 16px 16px; border-top: 1px solid var(--border); display: none; max-height: 50vh; overflow-y: auto; }
+  .stage-block-body.open { display: block; }
+  .toggle-arrow { transition: transform .2s; font-size: 10px; color: var(--muted); }
+  .toggle-arrow.open { transform: rotate(90deg); }
+
+  /* Log terminal */
+  .log-term { background: var(--log-bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px 12px; font-size: 11px; max-height: 200px; overflow-y: auto; margin-top: 10px; }
+  .log-line { line-height: 1.9; display: flex; gap: 12px; }
+  .log-time { color: var(--muted); flex-shrink: 0; }
+  .log-msg.ok { color: var(--green); }
+  .log-msg.warn { color: var(--yellow); }
+  .log-msg.err { color: var(--red); }
+  .log-msg.info { color: var(--blue); }
+  .log-cursor { display: inline-block; width: 7px; height: 12px; background: var(--green); animation: blink 1s step-end infinite; vertical-align: middle; }
+  @keyframes blink { 50%{opacity:0} }
+
+  /* URL list */
+  .url-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+  .url-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px; display: flex; align-items: flex-start; gap: 8px; }
+  .url-item.scraped { border-color: rgba(74,222,128,.3); }
+  .url-item.failed { border-color: rgba(248,113,113,.3); }
+  .url-text { font-size: 11px; color: var(--blue); word-break: break-all; flex: 1; }
+
+  /* Query tags */
+  .query-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+  .query-tag { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 3px 8px; font-size: 10px; color: var(--green); }
+
+  /* Analysis grid */
+  .analysis-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+  .analysis-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; }
+  .analysis-key { font-size: 9px; color: var(--muted); margin-bottom: 3px; letter-spacing: .08em; text-transform: uppercase; }
+  .analysis-val { font-size: 11px; color: var(--text); }
+
+  /* Results */
+  .answer-block { background: var(--surface2); border: 1px solid rgba(74,222,128,.2); border-radius: 8px; padding: 20px; line-height: 1.9; font-size: 12.5px; margin-top: 12px; }
+  .answer-block p { margin-bottom: 10px; }
+  .answer-block h2 { font-family: var(--sans); font-size: 16px; margin: 14px 0 8px; }
+  .answer-block h3 { font-family: var(--sans); font-size: 14px; color: #a0a0c0; margin: 12px 0 6px; }
+  .cite-tag { display: inline-flex; align-items: center; background: rgba(96,165,250,.15); color: var(--blue); border-radius: 3px; padding: 0 4px; font-size: 9px; font-weight: 600; margin: 0 2px; border: 1px solid rgba(96,165,250,.2); cursor: pointer; }
+  .sources-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(190px,1fr)); gap: 8px; margin-top: 10px; }
+  .source-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 9px 11px; font-size: 11px; }
+  .source-card:hover { border-color: var(--blue); }
+  .source-num { color: var(--blue); font-weight: 600; font-size: 10px; }
+  .source-title { color: var(--text); margin: 3px 0 2px; }
+  .source-url { color: var(--muted); font-size: 10px; word-break: break-all; }
+
+  /* Download bar */
+  .download-bar { padding: 11px 24px; border-top: 1px solid var(--border); background: var(--surface); display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .download-bar span { color: var(--muted); font-size: 11px; flex: 1; }
+
+  /* Empty state */
+  .empty-state { text-align: center; padding: 60px 24px; color: var(--muted); }
+  .empty-state h2 { font-family: var(--sans); font-size: 22px; color: var(--text); margin-bottom: 10px; }
+  .empty-state p { font-size: 12px; line-height: 1.9; max-width: 440px; margin: 0 auto 20px; }
+  .empty-state code { background: var(--surface2); border: 1px solid var(--border); border-radius: 4px; padding: 2px 6px; font-size: 11px; color: var(--green); }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  input[type="file"] { display: none; }
+
+  /* Theme toggle */
+  .theme-toggle { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; cursor: pointer; display: flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11px; color: var(--muted); transition: all .2s; }
+  .theme-toggle:hover { border-color: var(--green); color: var(--green); }
+  .theme-toggle svg { width: 14px; height: 14px; fill: currentColor; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="logo">RIPER <span>research intelligence pipeline</span></div>
+  <div class="header-right">
+    <button class="theme-toggle" id="themeToggle" onclick="toggleTheme()" title="Toggle light/dark mode">
+      <svg id="themeIcon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/></svg>
+    </button>
+    <span id="serverBadge">checking server…</span>
+    <div class="status-dot" id="globalDot"></div>
+    <span id="globalStatus" style="font-size:11px;color:var(--muted)">idle</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+
+    <div>
+      <div class="section-label">🏢 Company</div>
+      <div class="field-group" style="margin-top:4px">
+        <label>Select the operating company for this session</label>
+        <select id="companySelect">
+          <option value="共立電機">共立電機</option>
+          <option value="共立電照">共立電照</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label">📄 Additional Session Instructions</div>
+      <div class="field-group" style="margin-top:4px">
+        <label>Refine or augment the core baseline mission for this run</label>
+        <textarea id="missionText" placeholder="e.g. Focus specifically on stadium lights this time..." style="min-height:100px;font-family:var(--sans);" maxlength="2000"></textarea>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label">⚙️ Settings</div>
+      <div class="field-group">
+        <label>Target Prefecture / Location</label>
+        <input type="text" id="targetLocation" value="宮崎県" list="prefs" placeholder="e.g. 東京都, 大阪府..." maxlength="50">
+        <datalist id="prefs">
+          <option value="北海道"><option value="青森県"><option value="岩手県"><option value="宮城県"><option value="秋田県"><option value="山形県"><option value="福島県">
+          <option value="茨城県"><option value="栃木県"><option value="群馬県"><option value="埼玉県"><option value="千葉県"><option value="東京都"><option value="神奈川県">
+          <option value="新潟県"><option value="富山県"><option value="石川県"><option value="福井県"><option value="山梨県"><option value="長野県"><option value="岐阜県">
+          <option value="静岡県"><option value="愛知県"><option value="三重県"><option value="滋賀県"><option value="京都府"><option value="大阪府"><option value="兵庫県">
+          <option value="奈良県"><option value="和歌山県"><option value="鳥取県"><option value="島根県"><option value="岡山県"><option value="広島県"><option value="山口県">
+          <option value="徳島県"><option value="香川県"><option value="愛媛県"><option value="高知県"><option value="福岡県"><option value="佐賀県"><option value="長崎県">
+          <option value="熊本県"><option value="大分県"><option value="宮崎県"><option value="鹿児島県"><option value="沖縄県">
+        </datalist>
+      </div>
+      <div class="field-group" style="margin-top:6px">
+        <label>Data freshness window</label>
+        <select id="freshnessWindow">
+          <option value="7">Last 7 days</option>
+          <option value="14">Last 14 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="60">Last 60 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+      </div>
+      <div class="field-group" style="margin-top:6px">
+        <label>Max URLs to scrape</label>
+        <input type="number" id="maxUrls" value="10" min="1" max="15">
+      </div>
+      <div class="field-group" style="margin-top:6px">
+        <label>Firecrawl depth</label>
+        <select id="scrapeDepth">
+          <option value="1">1 — surface only</option>
+          <option value="2" selected>2 — follow links</option>
+          <option value="3">3 — deep crawl</option>
+        </select>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <button class="btn btn-primary" id="runBtn" onclick="runPipeline()">▶ Run Pipeline</button>
+    <button class="btn btn-outline btn-sm" onclick="resetAll()" style="width:100%;justify-content:center">↺ Reset</button>
+  </div>
+
+  <!-- Right panel -->
+  <div class="content">
+    <div class="pipeline-header" id="pipelineBar"></div>
+
+    <div class="stages-view" id="stagesView">
+      <div class="empty-state" id="emptyState">
+        <h2>RIPER</h2>
+        <p>Paste a research mission or upload a <code>.md</code> file, then click <strong>Run Pipeline</strong>. The 6-stage pipeline will analyze your mission, search the web, scrape sources, and synthesize a structured report.</p>
+        <p style="color:var(--green);font-size:11px">Server proxy active — API keys stay in <code>.env</code>, never in the browser.</p>
+      </div>
+    </div>
+
+    <div class="download-bar" id="downloadBar" style="display:none">
+      <span id="downloadLabel">Run complete</span>
+      <button class="btn btn-outline btn-sm" onclick="downloadJSON()">↓ results.json</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadMD()">↓ report.md</button>
+      <button class="btn btn-outline btn-sm" onclick="downloadCSV()">↓ sources.csv</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ─── Theme toggle ────────────────────────────────────────────────────────────
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  const icon = document.getElementById('themeIcon');
+  if (theme === 'light') {
+    icon.innerHTML = '<circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="12" y1="21" x2="12" y2="23" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="12" x2="3" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="21" y1="12" x2="23" y2="12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>';
+  } else {
+    icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3a7 7 0 0 0 9.79 9.79z"/>';
+  }
+}
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  applyTheme(next);
+  localStorage.setItem('riper-theme', next);
+}
+applyTheme(localStorage.getItem('riper-theme') || 'dark');
+
+// ─── State ────────────────────────────────────────────────────────────────────
+const S = {
+  mission: '',
+  profile: null,        // parsed company profile sections
+  profileRaw: '',       // full raw md (cached, used for cache-primed prompts)
+  analysis: null,
+  urls: [],
+  scraped: [],
+  synthesis: '',
+  sources: [],
+  tokens: { input: 0, output: 0, cache_creation: 0, cache_read: 0 },
+  stages: [
+    { id:'s1', num:1, name:'Profile',    sub:'load company',   status:'pending' },
+    { id:'s2', num:2, name:'Analyze',    sub:'extract intent', status:'pending' },
+    { id:'s3', num:3, name:'Search',     sub:'find URLs',      status:'pending' },
+    { id:'s4', num:4, name:'Scrape',     sub:'Firecrawl',      status:'pending' },
+    { id:'s5', num:5, name:'Synthesize', sub:'Claude Sonnet',  status:'pending' },
+    { id:'s6', num:6, name:'Export',     sub:'JSON / MD / CSV', status:'pending' },
+  ],
+  logs: {},
+  open: {},
+};
+S.stages.forEach(s => { S.logs[s.id]=[]; S.open[s.id]=false; });
+
+// ─── Profile parser ───────────────────────────────────────────────────────────
+// Splits an .md file into named sections using ## headings as keys.
+// Returns an object like { '企業概要': '...', '主要目標': '...', ... }
+function parseProfile(md) {
+  const sections = {};
+  let current = null;
+  let buf = [];
+  for (const line of md.split('\n')) {
+    if (line.startsWith('## ')) {
+      if (current !== null) sections[current] = buf.join('\n').trim();
+      current = line.replace(/^## /, '').trim();
+      buf = [];
+    } else {
+      buf.push(line);
+    }
+  }
+  if (current !== null) sections[current] = buf.join('\n').trim();
+  // Also store header (before first ##)
+  const headerEnd = md.indexOf('\n## ');
+  sections['_header'] = (headerEnd > -1 ? md.slice(0, headerEnd) : md).trim();
+  return sections;
+}
+
+// ─── Profile loader ───────────────────────────────────────────────────────────
+// Fetch profile for a given company name. Returns true on success.
+async function loadProfile(company) {
+  try {
+    const r = await fetch(`/api/profile/${encodeURIComponent(company)}`);
+    if (!r.ok) return false;
+    const d = await r.json();
+    if (!d.profile) return false;
+    S.profileRaw = d.profile;
+    S.profile = parseProfile(d.profile);
+    return true;
+  } catch { return false; }
+}
+
+// ─── Server health check ─────────────────────────────────────────────────────
+(async () => {
+  try {
+    const r = await fetch('/health');
+    const d = await r.json();
+    S.hasFirecrawl = d.firecrawl;
+    const badge = document.getElementById('serverBadge');
+    if (d.status === 'ok') {
+      badge.textContent = d.anthropic ? '✓ server ready' : '✗ no API key';
+      badge.className = d.anthropic ? 'ok' : 'err';
+    }
+    // Pre-load the profile for the default selected company
+    const defaultCompany = document.getElementById('companySelect').value;
+    await loadProfile(defaultCompany);
+  } catch {
+    const badge = document.getElementById('serverBadge');
+    badge.textContent = '✗ server offline';
+    badge.className = 'err';
+  }
+})();
+
+// Re-load profile when user changes the company dropdown
+document.getElementById('companySelect').addEventListener('change', async function() {
+  const ok = await loadProfile(this.value);
+  const badge = document.getElementById('serverBadge');
+  if (!ok) {
+    badge.textContent = `⚠ no profile for ${this.value}`;
+    badge.className = 'err';
+  } else {
+    badge.textContent = '✓ profile loaded';
+    badge.className = 'ok';
+  }
+});
+
+// ─── Render helpers ───────────────────────────────────────────────────────────
+function now() { return new Date().toTimeString().slice(0,8); }
+
+function log(id, msg, type='') {
+  S.logs[id].push({ t:now(), msg, type });
+  renderAll();
+}
+
+function setStage(id, status) {
+  const s = S.stages.find(x=>x.id===id);
+  if (s) { s.status=status; S.open[id]=true; }
+}
+
+function setGlobal(msg, active) {
+  document.getElementById('globalStatus').textContent = msg;
+  document.getElementById('globalDot').className = 'status-dot'+(active?' active':msg==='error'?' error':'');
+}
+
+function renderAll() { renderBar(); renderBlocks(); }
+
+function renderBar() {
+  const bar = document.getElementById('pipelineBar');
+  bar.innerHTML = '';
+  S.stages.forEach((s,i) => {
+    const icon = s.status==='running'?'◌':s.status==='done'?'✓':s.status==='error'?'✗':s.num;
+    const n = document.createElement('div'); n.className='stage-node';
+    n.innerHTML=`<div class="node-badge ${s.status}">${icon}</div><div class="node-info"><div class="node-name">${s.name}</div><div class="node-sub">${s.sub}</div></div>`;
+    bar.appendChild(n);
+    if (i < S.stages.length-1) {
+      const c = document.createElement('div');
+      c.className = 'stage-connector'+(s.status==='done'?' active':'');
+      bar.appendChild(c);
+    }
+  });
+}
+
+function renderBlocks() {
+  const view = document.getElementById('stagesView');
+  const hasActivity = S.stages.some(s=>s.status!=='pending');
+  document.getElementById('emptyState').style.display = hasActivity?'none':'block';
+
+  S.stages.forEach(s => {
+    const existing = view.querySelector(`[data-stage="${s.id}"]`);
+
+    if (s.status==='pending') {
+      if (existing) existing.remove();
+      return;
+    }
+
+    const isOpen = S.open[s.id];
+    const html = `
+      <div class="stage-block-header" onclick="toggleStage('${s.id}')">
+        <span class="stage-num">S${s.num}</span>
+        <span class="stage-title">${s.name} <small style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400">— ${s.sub}</small></span>
+        <span class="stage-badge badge-${s.status}">${s.status}</span>
+        <span class="toggle-arrow ${isOpen?'open':''}">▶</span>
+      </div>
+      <div class="stage-block-body ${isOpen?'open':''}">${bodyHTML(s)}</div>`;
+
+    if (existing) {
+      existing.className = `stage-block ${s.status}`;
+      existing.innerHTML = html;
+    } else {
+      const block = document.createElement('div');
+      block.className = `stage-block ${s.status}`;
+      block.setAttribute('data-stage', s.id);
+      block.innerHTML = html;
+      view.appendChild(block);
+    }
+  });
+}
+
+function toggleStage(id) { S.open[id]=!S.open[id]; renderAll(); }
+
+function bodyHTML(s) {
+  let h = '';
+
+  if (s.id==='s2' && S.analysis) {
+    h += `<div class="analysis-grid">
+      <div class="analysis-item"><div class="analysis-key">Intent</div><div class="analysis-val">${S.analysis.intent||'—'}</div></div>
+      <div class="analysis-item"><div class="analysis-key">PDFs</div><div class="analysis-val">${S.analysis.pdfEnabled?'Enabled':'Disabled'}</div></div>
+    </div>
+    <div class="section-label" style="margin-top:10px">Search Queries</div>
+    <div class="query-tags">${(S.analysis.queries||[]).map(q=>`<span class="query-tag">${q}</span>`).join('')}</div>`;
+  }
+
+  if (s.id==='s3' && S.urls.length) {
+    h += `<div class="url-list">${S.urls.map((u,i)=>`
+      <div class="url-item">
+        <span style="color:var(--muted);font-size:10px;flex-shrink:0">#${i+1}</span>
+        <div style="flex:1">
+          <div class="url-text">${u.url}</div>
+          ${u.title?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${u.title}</div>`:''}
+        </div>
+      </div>`).join('')}</div>`;
+  }
+
+  if (s.id==='s4' && S.scraped.length) {
+    h += `<div class="url-list">${S.scraped.map(sc=>`
+      <div class="url-item ${sc.error?'failed':'scraped'}">
+        <span style="color:${sc.error?'var(--red)':'var(--green)'};font-size:13px">${sc.error?'✗':'✓'}</span>
+        <div style="flex:1">
+          <div class="url-text">${sc.url}</div>
+          ${sc.wordCount?`<div style="font-size:10px;color:var(--muted);margin-top:2px">${sc.wordCount.toLocaleString()} words</div>`:''}
+          ${sc.error?`<div style="font-size:10px;color:var(--red);margin-top:2px">${sc.error}</div>`:''}
+        </div>
+      </div>`).join('')}</div>`;
+  }
+
+  if (s.id==='s5' && S.synthesis) {
+    h += `<div class="answer-block">${renderMD(S.synthesis)}</div>`;
+    if (S.sources.length) {
+      h += `<div class="section-label" style="margin-top:14px">Sources</div>
+      <div class="sources-grid">${S.sources.map((src,i)=>`
+        <div class="source-card">
+          <div class="source-num">[${i+1}]</div>
+          <div class="source-title">${src.title||'Source '+(i+1)}</div>
+          <div class="source-url">${src.url}</div>
+        </div>`).join('')}</div>`;
+    }
+  }
+
+  if (s.id==='s6' && s.status==='done') {
+    h += `<div style="margin-top:12px;color:var(--green);font-size:12px">✓ Use the Export buttons at the bottom to download results.</div>`;
+  }
+
+  const logs = S.logs[s.id]||[];
+  if (logs.length) {
+    h += `<div class="log-term">`+
+      logs.map(l=>`<div class="log-line"><span class="log-time">${l.t}</span><span class="log-msg ${l.type}">${escHtml(l.msg)}</span></div>`).join('')+
+      (s.status==='running'?`<div class="log-line"><span class="log-time">${now()}</span><span class="log-cursor"></span></div>`:'')+
+      `</div>`;
+  }
+  return h;
+}
+
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderMD(md) {
+  return md
+    .replace(/^## (.+)$/gm,'<h2>$1</h2>')
+    .replace(/^### (.+)$/gm,'<h3>$1</h3>')
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\[(\d+)\]/g,'<span class="cite-tag">$1</span>')
+    .replace(/`(.+?)`/g,'<code style="background:var(--code-bg);padding:1px 5px;border-radius:3px">$1</code>')
+    .split('\n\n').map(p=>p.startsWith('<h')?p:`<p>${p}</p>`).join('');
+}
+
+// ─── Rate-limit state ─────────────────────────────────────────────────────────
+let _lastCallTime = 0;         // epoch ms of last successful Claude call
+const MIN_CALL_GAP_MS = 3000;  // hard floor: never fire faster than 3s apart
+
+// ─── API helpers ──────────────────────────────────────────────────────────────
+async function callClaude(body) {
+  // — Minimum inter-call gap: spread calls over time, prevent burst —
+  const now = Date.now();
+  const gap = now - _lastCallTime;
+  if (_lastCallTime > 0 && gap < MIN_CALL_GAP_MS) await delay(MIN_CALL_GAP_MS - gap);
+
+  // — Retry loop with exponential backoff on 429 / 529 —
+  const MAX_RETRIES = 4;
+  let waitMs = 20000; // start at 20s — enough to clear a typical 1-min window
+  for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+    const res = await fetch('/api/claude', {
+      method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+    });
+
+    if (res.status === 429 || res.status === 529) {
+      if (attempt === MAX_RETRIES) {
+        throw new Error(`Claude rate-limited after ${MAX_RETRIES} retries (HTTP ${res.status}). Try again in ~1 minute.`);
+      }
+      // Honour Retry-After header if present, otherwise use exponential back-off
+      const retryAfter = parseInt(res.headers.get('retry-after') || '0', 10);
+      const backoff = retryAfter > 0 ? retryAfter * 1000 : waitMs;
+      console.warn(`[callClaude] HTTP ${res.status} — waiting ${Math.round(backoff/1000)}s before retry ${attempt+1}/${MAX_RETRIES}…`);
+      await delay(backoff);
+      waitMs = Math.min(waitMs * 2, 120000); // double each time, cap at 2 min
+      continue;
+    }
+
+    if (!res.ok) {
+      const errText = await res.text();
+      let errMsg = `Anthropic HTTP ${res.status}`;
+      try { const parsed = JSON.parse(errText); errMsg = parsed?.error?.message || errMsg; } catch {}
+      throw new Error(errMsg);
+    }
+
+    const data = await res.json();
+    if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+    _lastCallTime = Date.now();
+    if (data.usage) {
+      S.tokens.input += data.usage.input_tokens || 0;
+      S.tokens.output += data.usage.output_tokens || 0;
+      S.tokens.cache_creation += data.usage.cache_creation_input_tokens || 0;
+      S.tokens.cache_read += data.usage.cache_read_input_tokens || 0;
+    }
+    return data;
+  }
+}
+
+async function callHF(body) {
+  const res = await fetch('/api/hf/chat', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (data.error) throw new Error(data.error.message || JSON.stringify(data.error));
+
+  if (data.usage) {
+    S.tokens.input += data.usage.prompt_tokens || 0;
+    S.tokens.output += data.usage.completion_tokens || 0;
+  }
+
+  return data;
+}
+
+async function callClaudeWithTools(messages, tools, maxTurns=8, system=null, model='claude-sonnet-4-6') {
+  let msgs = [...messages];
+  for (let i=0; i<maxTurns; i++) {
+    const data = await callClaude({ model, max_tokens:1000, tools, messages:msgs, ...(system ? {system} : {}) });
+    if (data.stop_reason==='end_turn') return data;
+    if (data.stop_reason==='tool_use') {
+      msgs.push({ role:'assistant', content:data.content });
+      const results = data.content
+        .filter(b=>b.type==='tool_use')
+        .map(b=>({ type:'tool_result', tool_use_id:b.id, content:'executed' }));
+      if (results.length) msgs.push({ role:'user', content:results });
+      continue;
+    }
+    return data;
+  }
+  throw new Error('Max tool turns exceeded');
+}
+
+function getText(data) {
+  return (data.content||[]).filter(b=>b.type==='text').map(b=>b.text).join('');
+}
+
+function delay(ms) { return new Promise(r=>setTimeout(r,ms)); }
+
+// ─── Publication date extraction ──────────────────────────────────────────────
+function extractPublicationDate(markdown, url, cutoffDate) {
+  const patterns = [
+    { re: /(\d{4})年(\d{1,2})月(\d{1,2})日/, type: 'ja' },
+    { re: /(\d{4})-(\d{2})-(\d{2})/, type: 'iso' },
+    { re: /(\d{4})\/(\d{2})\/(\d{2})/, type: 'slash' },
+    { re: /"datePublished"\s*:\s*"(\d{4}-\d{2}-\d{2})/, type: 'jsonld' },
+  ];
+  for (const {re, type} of patterns) {
+    const match = markdown.match(re);
+    if (match) {
+      let dateStr;
+      if (type === 'jsonld') {
+        dateStr = match[1];
+      } else {
+        const y = match[1];
+        const m = String(match[2]).padStart(2, '0');
+        const d = String(match[3]).padStart(2, '0');
+        dateStr = `${y}-${m}-${d}`;
+      }
+      return { date: dateStr, fresh: dateStr >= cutoffDate };
+    }
+  }
+  return { date: 'unknown', fresh: null };
+}
+
+// ─── Main pipeline ────────────────────────────────────────────────────────────
+async function runPipeline() {
+  const mission = document.getElementById('missionText').value.trim().slice(0, 2000);
+  const company = document.getElementById('companySelect').value;
+  const targetLocation = (document.getElementById('targetLocation').value.trim() || '宮崎県').slice(0, 50);
+  const maxUrls   = Math.min(parseInt(document.getElementById('maxUrls').value)||10, 15);
+  const depth     = parseInt(document.getElementById('scrapeDepth').value)||2;
+  const freshnessDays = parseInt(document.getElementById('freshnessWindow').value) || 30;
+
+  // Reset everything
+  S.stages.forEach(s=>{s.status='pending';});
+  S.stages.forEach(s=>{S.logs[s.id]=[]; S.open[s.id]=true;});
+  S.analysis=null; S.urls=[]; S.scraped=[]; S.synthesis=''; S.sources=[]; S.hallucination_audit=null;
+  S.tokens = { input: 0, output: 0, cache_creation: 0, cache_read: 0 };
+  document.getElementById('downloadBar').style.display='none';
+  document.getElementById('runBtn').disabled=true;
+  document.getElementById('companySelect').disabled=true;
+  setGlobal('running',true);
+
+  try {
+    // ── Temporal anchor — computed once, injected everywhere ─────────────────
+    const TODAY       = new Date().toISOString().split('T')[0];
+    const CUTOFF_DATE = new Date(Date.now() - freshnessDays*24*60*60*1000).toISOString().split('T')[0];
+    const DATE_CONTEXT = `Today is ${TODAY}. Only include information published between ${CUTOFF_DATE} and ${TODAY} (last ${freshnessDays} days).`;
+    S.TODAY = TODAY;
+    S.CUTOFF_DATE = CUTOFF_DATE;
+    S.freshnessDays = freshnessDays;
+
+    // ── S1 Profile ──────────────────────────────────────────────────────────
+    setStage('s1','running'); log('s1','Loading company profile…','info');
+
+    // If profile not yet loaded (e.g. first run), fetch it now
+    if (!S.profile) {
+      const ok = await loadProfile(company);
+      if (!ok) {
+        log('s1', `Profile not found for "${company}". Cannot proceed.`, 'err');
+        throw new Error(`No profile found for company: ${company}`);
+      }
+    }
+    S.mission = mission;
+    S.company = company;
+    S.targetLocation = targetLocation;
+    await delay(200);
+    log('s1', `Profile loaded: ${S.profileRaw.length} chars`, 'ok');
+    log('s1', `Company: ${company}`, 'ok');
+    log('s1', `Target Location: ${targetLocation}`, 'info');
+    log('s1', `Freshness: last ${freshnessDays} days (cutoff: ${CUTOFF_DATE})`, 'info');
+    if (mission) log('s1', `Session note: "${mission.slice(0,60)}${mission.length>60?'…':''}"`, 'info');
+    setStage('s1','done');
+
+    // ── S2 Analyze ──────────────────────────────────────────────────────────
+    setStage('s2','running'); log('s2','Sending to Claude for analysis…','info');
+
+    // Build the high-priority context block (Sources + Company Context + Primary Goal)
+    // This is the block that will be prompt-cached across repeated runs.
+    const p = S.profile;
+    const PRIORITY_CONTEXT = [
+      p['_header'] || '',
+      p['企業概要'] ? `## 企業概要\n${p['企業概要']}` : '',
+      p['主要目標'] ? `## 主要目標\n${p['主要目標']}` : '',
+      // 共立電照 uses '情報源', 共立電機 uses nested inside '検索行動ルール'
+      p['情報源'] ? `## 情報源\n${p['情報源']}` : '',
+      p['検索行動ルール'] ? `## 検索行動ルール\n${p['検索行動ルール']}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const KEYWORD_CONTEXT = [
+      p['日本語の検索キーワード'] ? `## 日本語の検索キーワード\n${p['日本語の検索キーワード']}` : '',
+      p['主要な検索キーワード (日本語)'] ? `## 主要な検索キーワード\n${p['主要な検索キーワード (日本語)']}` : '',
+      p['検索対象'] ? `## 検索対象\n${p['検索対象']}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const aData = await callClaude({
+      model:'claude-haiku-4-5-20251001', max_tokens:1000,
+      system:[
+        // Block 1: High-priority context — cached across repeated runs for this company
+        { type: "text", text: `${DATE_CONTEXT}\nYou are a research intelligence analyst working for ${company}.\n\n<company_profile>\n${PRIORITY_CONTEXT}\n</company_profile>`, cache_control: { type: "ephemeral" } },
+        // Block 2: Search-specific instructions with keywords
+        { type: "text", text: `Analyze the session and generate optimal Japanese search queries for project discovery.\n\nSEARCH KEYWORDS FROM PROFILE:\n${KEYWORD_CONTEXT}\n\nCRITICAL RULES:\n1. Generate ALL queries in JAPANESE targeting regional media and government sites.\n2. Append the date filter "after:${CUTOFF_DATE}" to every query string.\n3. Mix broad ${targetLocation} queries with specific facility/product-type queries from the profile keywords.\n\nOutput ONLY valid JSON (no markdown, no backticks):\n{\n  "intent": "one sentence in English describing the research goal for ${company}",\n  "queries": ["query 1", "query 2", ...],\n  "pdfEnabled": false,\n  "language": "ja"\n}\nGenerate 8-12 specific Japanese search queries precisely targeting ${targetLocation}.` }
+      ],
+      messages:[{role:'user',content:`Company: ${company}\nTarget Location: ${targetLocation}\nSession Instructions: ${mission || 'Proceed with baseline profile rules.'}`}]
+    });
+
+    try {
+      S.analysis = JSON.parse(getText(aData).replace(/```json|```/g,'').trim());
+      log('s2',`Intent: ${S.analysis.intent}`,'ok');
+      log('s2',`${S.analysis.queries.length} search queries generated`,'ok');
+      setStage('s2','done');
+    } catch(e) {
+      throw new Error('Claude analysis parse failed: '+getText(aData).slice(0,80));
+    }
+
+    // ── S3 Search ───────────────────────────────────────────────────────────
+    setStage('s3','running'); log('s3','Starting web search…','info');
+    S.analysis.queries.forEach(q=>log('s3',`→ "${q}"`,''));
+
+    const searchData = await callClaudeWithTools([{
+      role:'user',
+      content:`Use web_search to find the ${maxUrls} most relevant, high-quality URLs. Search the queries exactly as provided (they already contain date filters).
+
+FRESHNESS VALIDATION — after collecting results:
+- Check each URL's visible publication date or snippet date.
+- REJECT any result whose date is before ${CUTOFF_DATE}.
+- If a result has no visible date, include it in a separate "unverified_date" array.
+
+Then output ONLY valid JSON (no markdown):
+{"urls":[{"url":"https://...","title":"...","snippet":"...","visible_date":"YYYY-MM-DD"},...],
+ "unverified_date":[{"url":"https://...","title":"...","snippet":"..."},...]}
+
+Queries:
+${S.analysis.queries.map((q,i)=>`${i+1}. ${q}`).join('\n')}
+
+Find ${maxUrls} total URLs — prefer primary sources, official docs, Japanese regional media, and government sites. No paywalled content.`
+    }], [{type:'web_search_20250305',name:'web_search'}], 8, `${DATE_CONTEXT}\nYou are a research URL finder. Use web_search to find URLs for Japanese regional research queries.`, 'claude-haiku-4-5-20251001');
+
+    const searchText = getText(searchData);
+    try {
+      const parsed = JSON.parse(searchText.replace(/```json|```/g,'').trim());
+      const validUrls = (parsed.urls||[]).filter(u=>u.url&&u.url.startsWith('http'));
+      const unverifiedUrls = (parsed.unverified_date||[]).filter(u=>u.url&&u.url.startsWith('http'));
+      S.urls = [...validUrls, ...unverifiedUrls].slice(0, maxUrls);
+    } catch {
+      // Regex fallback
+      const matches = [...searchText.matchAll(/https?:\/\/[^\s"'<>\]]+/g)];
+      const unique = [...new Set(matches.map(m=>m[0]))].slice(0,maxUrls);
+      S.urls = unique.map(url=>({url,title:url,snippet:''}));
+    }
+
+    // Client-side date gate — reject URLs with confirmed stale dates
+    S.urls = S.urls.filter(u => {
+      if (!u.visible_date) return true; // pass unverified through to S4
+      return u.visible_date >= CUTOFF_DATE;
+    });
+
+    if (!S.urls.length) throw new Error(`No URLs found within the last ${freshnessDays} days (after ${CUTOFF_DATE}). Try broadening the mission or increasing the freshness window.`);
+    log('s3',`${S.urls.length} URLs passed date filter`,'ok');
+    S.urls.forEach(u=>log('s3',`${u.url}${u.visible_date ? ' ['+u.visible_date+']' : ' [date unknown]'}`,'info'));
+    setStage('s3','done');
+
+    // ── Deduplicate URLs before S4 ─────────────────────────────────────────────
+    const beforeDedup = S.urls.length;
+    const seenUrls = new Set();
+    S.urls = S.urls.filter(u => {
+      try {
+        const normalized = new URL(u.url).href.replace(/\/+$/, '');
+        if (seenUrls.has(normalized)) return false;
+        seenUrls.add(normalized);
+        return true;
+      } catch { return true; }
+    });
+    if (beforeDedup > S.urls.length) {
+      log('s3', `Removed ${beforeDedup - S.urls.length} duplicate URLs`, 'warn');
+    }
+    log('s3', `${S.urls.length} unique URLs ready for scraping`, 'ok');
+
+    // ── S4 Scrape ───────────────────────────────────────────────────────────
+    setStage('s4','running');
+    const useFirecrawl = S.hasFirecrawl;
+    log('s4', useFirecrawl ? `Using Firecrawl API (depth ${depth})…` : 'No backend Firecrawl key — using Claude web_fetch fallback…', useFirecrawl?'info':'warn');
+
+    // Helper: process a scraped markdown result into a source entry
+    function processScrapeResult(url, title, md) {
+      const trimmedMd = md || '';
+      const wordCount = trimmedMd.trim() === '' ? 0 : trimmedMd.split(/\s+/).length;
+      const sc = { url, title, markdown: trimmedMd, wordCount };
+      const dateResult = extractPublicationDate(md, url, CUTOFF_DATE);
+      sc.publishDate = dateResult.date;
+      sc.fresh = dateResult.fresh;
+      if (dateResult.fresh === false) {
+        sc.excluded = true;
+        log('s4', `STALE — ${dateResult.date} is before ${CUTOFF_DATE} — excluding from synthesis`, 'warn');
+      } else if (dateResult.fresh === null) {
+        log('s4', `✓ ${sc.wordCount.toLocaleString()} words [date unknown]`, 'ok');
+      } else {
+        log('s4', `✓ ${sc.wordCount.toLocaleString()} words [published ${dateResult.date}]`, 'ok');
+      }
+      return sc;
+    }
+
+    // Helper: poll a Firecrawl crawl job until completion
+    async function pollCrawlJob(jobId, maxPollMs = 120000) {
+      const start = Date.now();
+      while (Date.now() - start < maxPollMs) {
+        await delay(3000);
+        try {
+          const pollRes = await fetch(`/api/firecrawl/crawl/${jobId}`);
+          if (!pollRes.ok) {
+            log('s4', `  poll returned HTTP ${pollRes.status}, retrying…`, 'warn');
+            continue;
+          }
+          const pollData = await pollRes.json();
+          if (pollData.status === 'completed') return pollData;
+          if (pollData.status === 'failed') throw new Error('Crawl job failed: ' + (pollData.error || ''));
+          log('s4', `  crawl status: ${pollData.status}…`, '');
+          renderAll();
+        } catch (pollErr) {
+          // Re-throw fatal errors (job explicitly failed), swallow transient parse errors
+          if (pollErr.message.startsWith('Crawl job failed')) throw pollErr;
+          log('s4', `  poll error (retrying): ${pollErr.message}`, 'warn');
+        }
+      }
+      throw new Error('Crawl job timed out');
+    }
+
+    for (const urlObj of S.urls) {
+      log('s4',`Scraping: ${urlObj.url}`,'info'); renderAll();
+      let success = false;
+      try {
+        if (useFirecrawl) {
+          if (depth > 1) {
+            // Deep crawl — use /api/firecrawl/crawl + poll
+            log('s4', `  depth ${depth} → using crawl endpoint…`, '');
+            const crawlRes = await fetch('/api/firecrawl/crawl', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url: urlObj.url, maxDepth: depth, limit: 5, scrapeOptions: { formats: ['markdown'] } })
+            });
+            const crawlData = await crawlRes.json();
+            if (crawlData.success && crawlData.id) {
+              const result = await pollCrawlJob(crawlData.id);
+              const pages = result.data || [];
+              log('s4', `  crawl returned ${pages.length} page(s)`, 'info');
+              for (const page of pages) {
+                const md = page.markdown || '';
+                if (!md.trim()) continue;
+                const pageUrl = page.metadata?.sourceURL || urlObj.url;
+                const pageTitle = page.metadata?.title || urlObj.title || pageUrl;
+                S.scraped.push(processScrapeResult(pageUrl, pageTitle, md));
+              }
+              success = pages.length > 0;
+            }
+            if (!success) log('s4', 'Crawl returned no data. Falling back…', 'warn');
+          } else {
+            // Depth 1 — simple scrape
+            const fcRes = await fetch('/api/firecrawl/scrape', {
+              method:'POST',
+              headers:{'Content-Type':'application/json'},
+              body:JSON.stringify({ url:urlObj.url, formats:['markdown'], timeout: 60000 })
+            });
+            const fcData = await fcRes.json();
+            if (fcData.success && fcData.data) {
+              const md = fcData.data.markdown||'';
+              S.scraped.push(processScrapeResult(urlObj.url, fcData.data.metadata?.title || urlObj.title, md));
+              success = true;
+            } else {
+              log('s4','Firecrawl timeout/error. Falling back...','warn');
+            }
+          }
+        }
+      } catch(err) {
+        log('s4',`Firecrawl failed: ${err.message}. Falling back...`,'warn');
+      }
+
+      if (!success) {
+        try {
+          log('s4',`Initiating Claude fallback...`,'info');
+          // Compact version: inject only context + goal, hard-capped to reduce token cost
+          // Cap at 600 chars so a 10-URL run stays well under 50K TPM on free-tier Haiku
+          const MISSION_COMPACT = [
+            S.profile['_header'] || '',
+            S.profile['企業概要'] ? `## 企業概要\n${S.profile['企業概要']}` : '',
+            S.profile['主要目標'] ? `## 主要目標\n${S.profile['主要目標']}` : '',
+          ].filter(Boolean).join('\n\n').slice(0, 600); // hard token cap
+          const fd = await callClaudeWithTools([{
+            role:'user',
+            content:`Summarize this page for ${company} in ${targetLocation}.\nURL: ${urlObj.url}\nFocus: project names, dates, contractors, amounts.`
+          }],[{type:'web_search_20250305',name:'web_search'}], 4, // reduced maxTurns
+            [{ type: "text", text: `${DATE_CONTEXT}\n${MISSION_COMPACT}`, cache_control: { type: "ephemeral" } }
+          ], 'claude-haiku-4-5-20251001');
+          const content = getText(fd);
+          S.scraped.push(processScrapeResult(urlObj.url, urlObj.title || urlObj.url, content));
+        } catch(fallbackErr) {
+          S.scraped.push({url:urlObj.url, error:fallbackErr.message});
+          log('s4',`✗ ${fallbackErr.message}`,'err');
+        }
+      }
+      renderAll();
+      await delay(200);
+    }
+    setStage('s4','done');
+
+    // ── S5 Synthesize ───────────────────────────────────────────────────────
+    setStage('s5','running'); log('s5','Synthesizing scraped content…','info');
+
+    // Layer 1 — Minimum freshness gate
+    const freshSources = S.scraped.filter(s => !s.error && s.markdown && s.excluded !== true);
+    const confirmedFresh = freshSources.filter(s => s.fresh === true);
+
+    if (freshSources.length === 0) {
+      throw new Error('INSUFFICIENT_DATA — no sources scraped successfully. Cannot synthesize.');
+    }
+
+    if (confirmedFresh.length === 0) {
+      log('s5', 'WARNING: No sources with confirmed publication dates. Synthesis may contain non-fresh content.', 'warn');
+    } else {
+      log('s5', `${confirmedFresh.length} sources with confirmed fresh dates, ${freshSources.length - confirmedFresh.length} with unknown dates`, 'info');
+    }
+
+    S.sources = freshSources.map((s,i)=>({url:s.url, title:s.title||s.url, num:i+1}));
+
+    const srcBlocks = freshSources.map((s,i)=>
+      `[Source ${i+1}] ${s.title||s.url}\nURL: ${s.url}\nPublished: ${s.publishDate||'unknown'}\n\n${s.markdown.slice(0,5000)}`
+    ).join('\n\n---\n\n');
+
+    // Layer 2 — Profile-driven synthesis prompt with anti-hallucination constraints
+    // Inject: Context + Primary Goal (cached) | Decision Rules + Output Format (stage-specific)
+    const SYNTH_CONTEXT = [
+      p['_header'] || '',
+      p['企業概要'] ? `## 企業概要\n${p['企業概要']}` : '',
+      p['主要目標'] ? `## 主要目標\n${p['主要目標']}` : '',
+      p['情報源'] ? `## 情報源\n${p['情報源']}` : '',
+    ].filter(Boolean).join('\n\n');
+    const SYNTH_RULES = [
+      p['意思決定ルール'] ? `## 意思決定ルール\n${p['意思決定ルール']}` : '',
+      p['必要な出力形式'] ? `## 必要な出力形式\n${p['必要な出力形式']}` : '',
+      p['必須出力形式'] ? `## 必須出力形式\n${p['必須出力形式']}` : '',
+      p['照明の重要度スコア (1～5)'] ? `## 照明の重要度スコア\n${p['照明の重要度スコア (1～5)']}` : '',
+    ].filter(Boolean).join('\n\n');
+
+    const systemPrompt = [
+      `${DATE_CONTEXT}`,
+      `You are a research synthesis engine for ${company}.`,
+      `Geographic focus: ${targetLocation}.`,
+      ``,
+      `<company_profile>`,
+      SYNTH_CONTEXT,
+      `</company_profile>`,
+      ``,
+      `<company_rules>`,
+      SYNTH_RULES,
+      `</company_rules>`,
+      ``,
+      `CRITICAL ANTI-HALLUCINATION RULES — these override all other instructions:`,
+      `1. Only include projects explicitly mentioned in the SOURCE BLOCKS below.`,
+      `2. Do NOT include any project from your training knowledge, even if you know it is real.`,
+      `3. If sources lack sufficient information, write: "INSUFFICIENT_FRESH_DATA: The scraped sources did not contain enough verifiable recent projects."`,
+      `4. Every project claim MUST be followed by a citation [N] matching a source block.`,
+      `5. If you cannot cite it, do not write it.`,
+      `6. Only projects announced after ${CUTOFF_DATE} should appear.`,
+      `7. Do NOT output any internal reasoning or thinking tags. Output ONLY the final report.`,
+      ``,
+      `Format:`,
+      `- H2 report title (include ${company} and ${targetLocation})`,
+      `- H3 sections grouping related findings`,
+      `- Apply all scoring methods and data fields from company_rules`,
+      `- Inline citations [1], [2] referencing source block numbers`,
+      `- Short conclusion section`,
+    ].join('\n');
+    const userPrompt = `Company: ${company}\nTarget Location: ${targetLocation}\nSession Instructions: ${S.mission || 'Proceed with baseline.'}\nIntent: ${S.analysis?.intent}\n\nScraped Sources:\n\n${srcBlocks}\n\nWrite the research synthesis for ${company} applying the rules above. Only use information from the source blocks.`;
+
+    const synthData = await callClaude({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [
+        { role: 'user', content: userPrompt }
+      ]
+    });
+
+    S.synthesis = getText(synthData)
+      .replace(/<think>[\s\S]*?<\/think>/g, '')   // Strip thinking tags if any
+      .replace(/^\s+/, '');                        // Trim leading whitespace
+    log('s5',`${S.synthesis.split(/\s+/).length} word synthesis`,'ok');
+
+    // Layer 3 — Post-synthesis hallucination audit
+    try {
+      log('s5', 'Running hallucination audit…', 'info');
+      const auditRes = await callClaude({
+        model:'claude-haiku-4-5-20251001', max_tokens:1000,
+        system:`You are a fact-checking auditor. You will receive a research report and the source blocks it was generated from.
+Identify any project names, dates, or facts in the report that do NOT appear verbatim in the source blocks.
+Output ONLY valid JSON: { "hallucinated_claims": ["claim 1", "claim 2"], "verified_claims_count": 0 }`,
+        messages:[{
+          role:'user',
+          content:`REPORT:\n${S.synthesis}\n\nSOURCE BLOCKS:\n${srcBlocks}`
+        }]
+      });
+      const auditText = getText(auditRes).replace(/```json|```/g,'').trim();
+      const auditData = JSON.parse(auditText);
+      S.hallucination_audit = auditData;
+
+      if (auditData.hallucinated_claims && auditData.hallucinated_claims.length > 0) {
+        log('s5', `AUDIT WARNING: ${auditData.hallucinated_claims.length} claims not found in sources`, 'warn');
+        auditData.hallucinated_claims.forEach(c => log('s5', `  — ${c}`, 'err'));
+      } else {
+        log('s5', `Audit passed — all ${auditData.verified_claims_count} claims sourced`, 'ok');
+      }
+    } catch(auditErr) {
+      log('s5', `Audit failed (non-fatal): ${auditErr.message}`, 'warn');
+      S.hallucination_audit = { error: auditErr.message };
+    }
+
+    setStage('s5','done');
+
+    // ── S6 Export ───────────────────────────────────────────────────────────
+    setStage('s6','running'); log('s6','Refining executive summary via LLM…','info');
+    
+    try {
+      const exRes = await callClaude({
+        model:'claude-haiku-4-5-20251001', max_tokens: 1500,
+        system: "You are an executive summary generator. Generate a highly concise, user-friendly summary of the provided research report. STRICT RULE: Base your output *only* on the provided report. Do NOT add external or inferred information. Use a clean, professional tone.",
+        messages: [{ role: 'user', content: S.synthesis }]
+      });
+      S.export_summary = getText(exRes);
+      log('s6', 'Executive summary generated successfully', 'ok');
+    } catch (e) {
+      log('s6', 'Executive summary generation failed: ' + e.message, 'warn');
+      S.export_summary = "Failed to generate summary.";
+    }
+
+    // prepend summary to markdown output for the download text
+    S.synthesis = `# Executive Summary\n${S.export_summary}\n\n---\n\n${S.synthesis}`;
+
+    // Log token usage
+    const totalInput = S.tokens.input + S.tokens.cache_creation + S.tokens.cache_read;
+    const totalCostStr = ((totalInput / 1000000 * 3.0) + (S.tokens.output / 1000000 * 15.0)).toFixed(3);
+    log('s6', `Total Tokens: ${totalInput.toLocaleString()} in, ${S.tokens.output.toLocaleString()} out`, 'info');
+    if (S.tokens.cache_read > 0) log('s6', `Cache saved: ${S.tokens.cache_read.toLocaleString()} tokens`, 'ok');
+    log('s6', `Estimated Cost: ~$${totalCostStr}`, 'info');
+
+    await delay(300);
+    log('s6','Ready — use Export buttons below','ok');
+    setStage('s6','done');
+
+    document.getElementById('downloadBar').style.display='flex';
+    document.getElementById('downloadLabel').innerHTML =
+      `Complete — ${S.scraped.filter(s=>!s.error).length}/${S.urls.length} sources scraped, ${S.synthesis.split(/\s+/).length} words`;
+    setGlobal('complete',false);
+
+  } catch(err) {
+    const running = S.stages.find(s=>s.status==='running');
+    if (running) { log(running.id,`Error: ${err.message}`,'err'); setStage(running.id,'error'); }
+    setGlobal('error',false);
+    console.error(err);
+  }
+
+  document.getElementById('runBtn').disabled=false;
+  document.getElementById('companySelect').disabled=false;
+  renderAll();
+}
+
+// ─── Downloads ────────────────────────────────────────────────────────────────
+function downloadJSON() {
+  const d = {
+    timestamp: new Date().toISOString(),
+    run_date: S.TODAY || null,
+    cutoff_date: S.CUTOFF_DATE || null,
+    freshness_days: S.freshnessDays || null,
+    company: S.company || null,
+    target_location: S.targetLocation || null,
+    mission: S.mission,
+    analysis: S.analysis,
+    urls: S.urls,
+    scraped: S.scraped.map(s=>({
+      url: s.url,
+      title: s.title,
+      wordCount: s.wordCount,
+      publishDate: s.publishDate || 'unknown',
+      fresh: s.fresh,
+      excluded: s.excluded || false,
+      error: s.error || null
+    })),
+    synthesis: S.synthesis,
+    sources: S.sources,
+    hallucination_audit: S.hallucination_audit || null,
+    tokens: S.tokens || null,
+  };
+  dl(JSON.stringify(d,null,2),'application/json',`riper-${Date.now()}.json`);
+}
+
+function downloadMD() {
+  const audit = S.hallucination_audit;
+  const auditSection = audit && !audit.error
+    ? `## Hallucination Audit\n- Verified claims: ${audit.verified_claims_count}\n- Flagged claims: ${(audit.hallucinated_claims||[]).length}\n${(audit.hallucinated_claims||[]).map(c=>`  - ${c}`).join('\n')}\n`
+    : '';
+  const lines = [
+    `# Research Report\n_RIPER — ${new Date().toLocaleString()}_\n_Company: ${S.company || 'N/A'} | Location: ${S.targetLocation || 'N/A'}_\n_Run date: ${S.TODAY || 'N/A'} | Cutoff: ${S.CUTOFF_DATE || 'N/A'} (last ${S.freshnessDays || '?'} days)_\n`,
+    `## Mission\n${S.mission}\n`,
+    `## Research Intent\n${S.analysis?.intent||''}\n`,
+    `## Search Queries\n${(S.analysis?.queries||[]).map(q=>`- ${q}`).join('\n')}\n`,
+    `## Sources\n${S.sources.map((s,i)=>`${i+1}. [${s.title}](${s.url})`).join('\n')}\n`,
+    `## Synthesis\n${S.synthesis}\n`,
+    auditSection,
+  ];
+  dl(lines.join('\n'),'text/markdown',`riper-report-${Date.now()}.md`);
+}
+
+function downloadCSV() {
+  const escapeCsv = v => {
+    const s = String(v ?? '');
+    return s.includes(',') || s.includes('"') || s.includes('\n') ? `"${s.replace(/"/g,'""')}"` : s;
+  };
+  const header = ['#','URL','Title','Word Count','Publish Date','Fresh','Excluded','Error'];
+  const rows = S.scraped.map((s, i) => [
+    i + 1,
+    s.url,
+    s.title || '',
+    s.wordCount || 0,
+    s.publishDate || 'unknown',
+    s.fresh === true ? 'yes' : s.fresh === false ? 'no' : 'unknown',
+    s.excluded ? 'yes' : 'no',
+    s.error || '',
+  ].map(escapeCsv).join(','));
+  const csv = [header.join(','), ...rows].join('\n');
+  dl(csv, 'text/csv', `riper-sources-${Date.now()}.csv`);
+}
+
+function dl(content,type,name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type}));
+  a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 100);
+}
+
+function resetAll() {
+  S.stages.forEach(s=>{s.status='pending'; S.logs[s.id]=[]; S.open[s.id]=false;});
+  S.profile=null; S.profileRaw=''; S.analysis=null; S.urls=[]; S.scraped=[]; S.synthesis=''; S.sources=[]; S.hallucination_audit=null;
+  document.getElementById('downloadBar').style.display='none';
+  setGlobal('idle',false); renderAll();
+}
+
+// Init
+renderBar(); renderBlocks();
+</script>
+</body>
+</html>
